@@ -2,7 +2,6 @@
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 
 module Language.PureScript.Ide.Types where
@@ -43,7 +42,6 @@ data ExternDecl
         ModuleIdent  -- name of the dependency
         [Text]       -- explicit imports
         (Maybe Text) -- An eventual qualifier
-
     -- | A module declaration
     | ModuleDecl
         ModuleIdent -- The modules name
@@ -175,7 +173,7 @@ instance FromJSON PursuitSearchType where
   parseJSON _ = mzero
 
 instance FromJSON PursuitQuery where
-  parseJSON o = PursuitQuery <$> (parseJSON o)
+  parseJSON o = PursuitQuery <$> parseJSON o
 
 data PursuitResponse =
   -- | A Pursuit Response for a module. Consists of the modules name and the
