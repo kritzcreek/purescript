@@ -629,7 +629,7 @@ prettyPrintSingleError full level showWiki e = flip evalState defaultUnknownMap 
     renderSimpleErrorMessage (CycleInDeclaration nm) =
       line $ "The value of " ++ showIdent nm ++ " is undefined here, so this reference is not allowed."
     renderSimpleErrorMessage (CycleInModules mns) =
-      paras [ line "There is a cycle in module dependencies in these modules: "
+      paras [ line $ "There is a cycle in module dependencies in these modules: "
             , indent $ paras (map (line . runModuleName) mns)
             ]
     renderSimpleErrorMessage (CycleInTypeSynonym name) =
@@ -663,7 +663,7 @@ prettyPrintSingleError full level showWiki e = flip evalState defaultUnknownMap 
             sortRows' :: ([(String, Type)], Type) -> ([(String, Type)], Type) -> (Type, Type)
             sortRows' (s1, r1) (s2, r2) =
               let common :: [(String, (Type, Type))]
-                  common = sortBy (comparing fst) [ (name, (t1, t2)) | (name, t1) <- s1, (name', t2) <- s2, name == name' ]
+                  common = sortBy (comparing fst) $ [ (name, (t1, t2)) | (name, t1) <- s1, (name', t2) <- s2, name == name' ]
 
                   sd1, sd2 :: [(String, Type)]
                   sd1 = [ (name, t1) | (name, t1) <- s1, name `notElem` map fst s2 ]
@@ -832,8 +832,8 @@ prettyPrintSingleError full level showWiki e = flip evalState defaultUnknownMap 
       paras [ line "A case expression could not be determined to cover all inputs."
             , line "The following additional cases are required to cover all inputs:\n"
             , indent $ paras $
-                Box.hsep 1 Box.left (map (paras . map (line . prettyPrintBinderAtom)) (transpose bs))
-                : [ line "..." | not b ]
+                [ Box.hsep 1 Box.left (map (paras . map (line . prettyPrintBinderAtom)) (transpose bs)) ]
+                ++ [ line "..." | not b ]
             , line "Or alternatively, add a Partial constraint to the type of the enclosing value."
             , line "Non-exhaustive patterns for values without a `Partial` constraint will be disallowed in PureScript 0.9."
             ]
@@ -965,7 +965,7 @@ prettyPrintSingleError full level showWiki e = flip evalState defaultUnknownMap 
       line "An anonymous function argument appears in an invalid context."
 
     renderSimpleErrorMessage (InvalidOperatorInBinder op fn) =
-      paras [ line $ "Operator " ++ showIdent op ++ " cannot be used in a pattern as it is an alias for function " ++ showIdent fn ++ "."
+      paras $ [ line $ "Operator " ++ showIdent op ++ " cannot be used in a pattern as it is an alias for function " ++ showIdent fn ++ "."
               , line "Only aliases for data constructors may be used in patterns."
               ]
 
@@ -1173,7 +1173,7 @@ prettyPrintRef (TypeClassRef pn) = "class " ++ runProperName pn
 prettyPrintRef (ProperRef name) = name
 prettyPrintRef (TypeInstanceRef ident) = showIdent ident
 prettyPrintRef (ModuleRef name) = "module " ++ runModuleName name
-prettyPrintRef (PositionedDeclarationRef _ _ ref) = prettyPrintRef ref
+prettyPrintRef (PositionedDeclarationRef _ _ ref) = prettyPrintExport ref
 
 -- |
 -- Pretty print multiple errors
@@ -1189,11 +1189,11 @@ prettyPrintMultipleWarnings full = unlines . map renderBox . prettyPrintMultiple
 
 -- | Pretty print warnings as a Box
 prettyPrintMultipleWarningsBox :: Bool -> MultipleErrors -> [Box.Box]
-prettyPrintMultipleWarningsBox = prettyPrintMultipleErrorsWith Warning "Warning found:" "Warning"
+prettyPrintMultipleWarningsBox full = prettyPrintMultipleErrorsWith Warning "Warning found:" "Warning" full
 
 -- | Pretty print errors as a Box
 prettyPrintMultipleErrorsBox :: Bool -> MultipleErrors -> [Box.Box]
-prettyPrintMultipleErrorsBox = prettyPrintMultipleErrorsWith Error "Error found:" "Error"
+prettyPrintMultipleErrorsBox full = prettyPrintMultipleErrorsWith Error "Error found:" "Error" full
 
 prettyPrintMultipleErrorsWith :: Level -> String -> String -> Bool -> MultipleErrors -> [Box.Box]
 prettyPrintMultipleErrorsWith level intro _ full (MultipleErrors [e]) =
