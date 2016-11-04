@@ -311,6 +311,7 @@ library
                      PatternSynonyms
                      RankNTypes
                      RecordWildCards
+                     OverloadedStrings
                      ScopedTypeVariables
                      TupleSections
                      ViewPatterns
