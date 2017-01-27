@@ -23,17 +23,17 @@ main = do
   hSetEncoding stdout utf8
   hSetEncoding stderr utf8
 
-  heading "Updating support code"
-  TestUtils.updateSupportCode
-  heading "Main compiler test suite"
-  TestCompiler.main
-  heading "Documentation test suite"
-  TestDocs.main
-  TestPrimDocs.main
-  heading "psc-publish test suite"
-  TestPscPublish.main
-  heading "psci test suite"
-  TestPsci.main
+  -- heading "Updating support code"
+  -- TestUtils.updateSupportCode
+  -- heading "Main compiler test suite"
+  -- TestCompiler.main
+  -- heading "Documentation test suite"
+  -- TestDocs.main
+  -- TestPrimDocs.main
+  -- heading "psc-publish test suite"
+  -- TestPscPublish.main
+  -- heading "psci test suite"
+  -- TestPsci.main
   heading "psc-ide test suite"
   TestPscIde.main
 

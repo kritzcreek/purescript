@@ -3,7 +3,7 @@
 --
 module Language.PureScript.Parser.Lexer
   ( PositionedToken(..)
-  , Token()
+  , Token(..)
   , TokenParser()
   , lex
   , anyToken
@@ -107,8 +107,8 @@ data Token
   | UName Text
   | Qualifier Text
   | Symbol Text
-  | CharLiteral Char
-  | StringLiteral PSString
+  | CharLiteral' Char
+  | StringLiteral' PSString
   | Number (Either Integer Double)
   | HoleLit Text
   deriving (Show, Eq, Ord)
@@ -139,8 +139,8 @@ prettyPrintToken (LName s)         = T.pack (show s)
 prettyPrintToken (UName s)         = T.pack (show s)
 prettyPrintToken (Qualifier _)     = "qualifier"
 prettyPrintToken (Symbol s)        = s
-prettyPrintToken (CharLiteral c)   = T.pack (show c)
-prettyPrintToken (StringLiteral s) = T.pack (show s)
+prettyPrintToken (CharLiteral' c)   = T.pack (show c)
+prettyPrintToken (StringLiteral' s) = T.pack (show s)
 prettyPrintToken (Number n)        = T.pack (either show show n)
 prettyPrintToken (HoleLit name)    = "?" <> name
 
@@ -153,11 +153,16 @@ data PositionedToken = PositionedToken
   , ptPrevEndPos :: Maybe P.SourcePos
   , ptToken     :: Token
   , ptComments  :: [Comment]
-  } deriving (Eq)
+  } deriving (Eq, Show)
 
 -- Parsec requires this instance for various token-level combinators
-instance Show PositionedToken where
-  show = T.unpack . prettyPrintToken . ptToken
+-- instance Show PositionedToken where
+--   -- show = T.unpack . prettyPrintToken . ptToken
+--   show t = show
+--     (prettyPrintToken (ptToken t)
+--     , "Start: " <> show (ptSourcePos t)
+--     , "End: " <> show (ptEndPos t)
+--     , "Prev: " <> show (ptPrevEndPos t))
 
 type Lexer u a = P.Parsec Text u a
 
@@ -227,8 +232,8 @@ parseToken = P.choice
       guard (validModuleName uName) *> (Qualifier uName <$ P.char '.')
       <|> pure (UName uName)
   , Symbol        <$> parseSymbol
-  , CharLiteral   <$> parseCharLiteral
-  , StringLiteral <$> parseStringLiteral
+  , CharLiteral'  <$> parseCharLiteral
+  , StringLiteral' <$> parseStringLiteral
   , Number        <$> parseNumber
   ]
 
@@ -503,13 +508,13 @@ symbol' s = token go P.<?> show s
 charLiteral :: TokenParser Char
 charLiteral = token go P.<?> "char literal"
   where
-  go (CharLiteral c) = Just c
+  go (CharLiteral' c) = Just c
   go _ = Nothing
 
 stringLiteral :: TokenParser PSString
 stringLiteral = token go P.<?> "string literal"
   where
-  go (StringLiteral s) = Just s
+  go (StringLiteral' s) = Just s
   go _ = Nothing
 
 number :: TokenParser (Either Integer Double)

@@ -574,5 +574,6 @@ test-suite tests
                    Language.PureScript.Ide.ReexportsSpec
                    Language.PureScript.Ide.SourceFileSpec
                    Language.PureScript.Ide.StateSpec
+                   Language.PureScript.Parser.LexerSpec
     buildable: True
     hs-source-dirs: tests

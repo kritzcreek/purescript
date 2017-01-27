@@ -1,3 +1,4 @@
+{-# LANGUAGE NamedFieldPuns #-}
 -----------------------------------------------------------------------------
 --
 -- Module      : Language.PureScript.Ide
@@ -40,6 +41,8 @@ import           Language.PureScript.Ide.Util
 import           System.Directory (getCurrentDirectory, getDirectoryContents, doesDirectoryExist, doesFileExist)
 import           System.FilePath ((</>))
 import           System.FilePath.Glob (glob)
+
+import qualified Text.Parsec as Pa
 
 -- | Accepts a Commmand and runs it against psc-ide's State. This is the main
 -- entry point for the server.
@@ -89,6 +92,17 @@ handleCommand c = case c of
     TextResult . toS <$> liftIO getCurrentDirectory
   Reset ->
     resetIdeState $> TextResult "State has been reset."
+  TokenAtPoint fp row column -> do
+   input <- liftIO (readFile fp)
+   let tkns = either (const []) identity (P.lex fp input)
+   pure (TextResult (show (P.ptToken <$> (find go tkns))))
+   where
+     go (P.PositionedToken{ptSourcePos, ptEndPos}) =
+       row == Pa.sourceLine ptSourcePos
+       && column >= Pa.sourceColumn ptSourcePos
+       && (column < Pa.sourceColumn ptEndPos
+           || Pa.sourceColumn ptSourcePos == Pa.sourceColumn ptEndPos)
+
   Quit ->
     liftIO exitSuccess
 

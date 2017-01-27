@@ -58,6 +58,7 @@ data Command
     | RebuildSync FilePath -- ^ Rebuild the specified file using the loaded externs
     | Cwd
     | Reset
+    | TokenAtPoint FilePath Int Int
     | Quit
 
 commandName :: Command -> Text
@@ -75,6 +76,7 @@ commandName c = case c of
   RebuildSync{} -> "RebuildSync"
   Cwd{} -> "Cwd"
   Reset{} -> "Reset"
+  TokenAtPoint{} -> "TokenAtPoint"
   Quit{} -> "Quit"
 
 data ImportCommand
@@ -158,6 +160,12 @@ instance FromJSON Command where
         params <- o .: "params"
         Rebuild
           <$> params .: "file"
+      "token" -> do
+        params <- o .: "params"
+        TokenAtPoint
+          <$> params .: "path"
+          <*> params .: "row"
+          <*> params .: "column"
       _ -> mzero
     where
       mkAnnotations True = explicitAnnotations
