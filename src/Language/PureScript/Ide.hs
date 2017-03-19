@@ -92,14 +92,22 @@ handleCommand c = case c of
   Quit ->
     liftIO exitSuccess
 
-findCompletions :: Ide m =>
-                   [Filter] -> Matcher IdeDeclarationAnn -> Maybe P.ModuleName -> m Success
+findCompletions
+  :: (Ide m, MonadError IdeError m)
+  => [Filter]
+  -> Matcher IdeDeclarationAnn
+  -> Maybe P.ModuleName
+  -> m Success
 findCompletions filters matcher currentModule = do
   modules <- getAllModules currentModule
-  pure . CompletionResult . map completionFromMatch . getCompletions filters matcher $ modules
+  pure . CompletionResult . map completionFromMatch . flattenReexports . getCompletions filters matcher $ modules
 
-findType :: Ide m =>
-            Text -> [Filter] -> Maybe P.ModuleName -> m Success
+findType
+  :: Ide m
+  => Text
+  -> [Filter]
+  -> Maybe P.ModuleName
+  -> m Success
 findType search filters currentModule = do
   modules <- getAllModules currentModule
   pure . CompletionResult . map completionFromMatch . getExactMatches search filters $ modules
