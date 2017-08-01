@@ -89,3 +89,6 @@ isIrrefutable (PositionedBinder _ _ b) = isIrrefutable b
 isIrrefutable (TypedBinder _ b) = isIrrefutable b
 isIrrefutable _ = False
 
+binderSourceSpan :: Binder -> Maybe SourceSpan
+binderSourceSpan (PositionedBinder s _ _) = Just s
+binderSourceSpan _ = Nothing

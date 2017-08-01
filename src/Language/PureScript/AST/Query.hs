@@ -1,13 +1,14 @@
+{-# LANGUAGE DeriveFoldable    #-}
+{-# LANGUAGE DeriveTraversable #-}
 module Language.PureScript.AST.Query where
 
 import Protolude
 
 import qualified Language.PureScript as P
 
-import Control.Monad.Writer.Strict
+import           Control.Arrow ((&&&))
 import           Data.Vector (Vector)
 import qualified Data.Vector as V
-import           Data.Vector.Mutable (MVector)
 import qualified Data.Vector.Mutable as MV
 import Data.Vector.Algorithms.Search
 import Language.PureScript.AST
@@ -15,51 +16,79 @@ import Language.PureScript.AST
 type M = State S
 
 data S = S
-  { nodes :: Vector (DFI Node)
+  { nodes :: Vector (Indexed Node)
   , currentIndex :: Int
   }
 
--- Depth first index
-type DFI a = (Int, Int, a)
+newtype DFI = DFI { unDFI :: Int } deriving (Show, Eq, Ord)
 
-getDFI :: DFI a -> Int
-getDFI (dfi, _, _) = dfi
+-- Depth first index
+data Indexed a = Indexed
+  { ixDFI :: DFI
+  , ixDesc :: Int
+  , ixVal :: a
+  } deriving (Show, Eq, Ord, Functor, Foldable, Traversable)
+
 
 data Node = Declaration' Declaration | Expr' Expr | Binder' Binder
 
 data Index = Index
-  { declarations :: Vector (DFI Declaration)
-  , expressions :: Vector (DFI Expr)
-  , binders :: Vector (DFI Binder)
+  { declarations :: Vector (Indexed Declaration)
+  , expressions :: Vector (Indexed Expr)
+  , binders :: Vector (Indexed Binder)
+  , sourceSpans :: Vector (SourcePos, SourcePos)
   } deriving Show
 
 emptyIndex :: Index
-emptyIndex = Index V.empty V.empty V.empty
+emptyIndex = Index V.empty V.empty V.empty V.empty
 
 buildIndex :: Declaration -> Index
 buildIndex x =
-  let result :: Vector (DFI Node) = nodes $ flip execState (S V.empty 0) $ goDecl x
-  in foldl' insertNode emptyIndex result
+  let
+    result :: Vector (Indexed Node) = nodes $ flip execState (S V.empty 0) $ goDecl x
+    span = declSourceSpan x
+  in
+    fst $ foldl' insertNode (emptyIndex, (spanStart span, spanEnd span)) result
 
-nextIndex :: M Int
-nextIndex = gets currentIndex <* modify (\s -> s {currentIndex = currentIndex s + 1})
-
-writeNode :: (Int, Node) -> M ()
-writeNode (i, node) = modify $ \(S nodes ix) -> S (nodes `V.snoc` (i, 0, node)) ix
-
-updateDescendantCount :: Int -> Int -> M ()
-updateDescendantCount ix count = modify $ \(S nodes i) -> S ( V.modify (\v -> MV.modify v setCount ix) nodes ) i
-  where
-   setCount (dfi, _, node) = (dfi, count, node)
-
-insertNode :: Index -> DFI Node -> Index
-insertNode prev (i, j, node) = case node of
+insertNode :: (Index, (SourcePos, SourcePos)) -> Indexed Node -> (Index, (SourcePos, SourcePos))
+insertNode (prev, pSpan) (Indexed i j node) = case node of
   Declaration' d ->
-    prev { declarations = V.snoc (declarations prev) (i, j, d) }
+    let
+      span = (spanStart &&& spanEnd) (declSourceSpan d)
+    in
+      (prev
+        { declarations = V.snoc (declarations prev) (Indexed i j d)
+        , sourceSpans = V.snoc (sourceSpans prev) span
+        }, span)
   Expr' e ->
-    prev { expressions = V.snoc (expressions prev) (i, j, e) }
+    let
+      span = maybe pSpan (spanStart &&& spanEnd) (exprSourceSpan e)
+    in
+      (prev
+        { expressions = V.snoc (expressions prev) (Indexed i j e)
+        , sourceSpans = V.snoc (sourceSpans prev) span
+        }, span)
   Binder' b ->
-    prev { binders = V.snoc (binders prev) (i, j, b) }
+    let
+      span = maybe pSpan (spanStart &&& spanEnd) (binderSourceSpan b)
+    in
+      (prev
+        { binders = V.snoc (binders prev) (Indexed i j b)
+        , sourceSpans = V.snoc (sourceSpans prev) span
+        }, span)
+
+
+nextIndex :: M DFI
+nextIndex = gets (DFI . currentIndex) <* modify (\s -> s {currentIndex = currentIndex s + 1})
+
+writeNode :: (DFI, Node) -> M ()
+writeNode (i, node) = modify $ \(S nodes ix) -> S (nodes `V.snoc` Indexed i 0 node) ix
+
+updateDescendantCount :: DFI -> Int -> M ()
+updateDescendantCount ix count =
+  modify $ \(S nodes i) -> S ( V.modify (\v -> MV.modify v setDesc (unDFI ix)) nodes ) i
+  where
+   setDesc i = i { ixDesc = count }
 
 goDecl :: Declaration -> M Int
 goDecl d = case d of
@@ -177,19 +206,25 @@ goBinder b = case b of
       updateDescendantCount ix descendants
       pure (descendants + 1)
 
-getDescendants :: Index -> (Int, Int) -> (Index -> Vector (DFI a)) -> Vector (DFI a)
-getDescendants ix (dfi, desc) type_ = runST $ do
+getDescendants :: Index -> (DFI, Int) -> (Index -> Vector (Indexed a)) -> Vector (Indexed a)
+getDescendants ix (DFI dfi, desc) type_ = runST $ do
   let nodes = type_ ix
-  let l = V.length nodes
-  thawed <- V.thaw (map getDFI nodes)
-  a <- binarySearchByBounds compare thawed dfi 0 l
-  b <- binarySearchByBounds compare thawed (dfi + desc) (a + 1) l
-  pure (V.slice a b nodes)
+  if V.null nodes
+    then pure V.empty
+    else do
+      let l = V.length nodes
+      thawed <- V.thaw (map (unDFI . ixDFI) nodes)
+      a <- binarySearchByBounds compare thawed dfi 0 l
+      b <- binarySearchByBounds compare thawed (dfi + desc) (a + 1) l
+      pure (V.slice a b nodes)
 
+-- script :: IO Index
 script = do
-  let fp = "d:/Documents/GitHub/tmp/src/Main.purs"
+  let fp = "C:/Users/Christoph/code/tmp/src/Main.purs"
   f <- readFile fp
   let Right (_, P.Module _ _ _ decls _) = P.parseModuleFromFile identity (fp, f)
-  let [_, decl] = decls
-  let ix = buildIndex decl
-  pure ix
+  pure (V.fromList decls)
+  -- let (_ : decl :_) = decls
+  -- let ix = buildIndex decl
+  -- pure ix
+
