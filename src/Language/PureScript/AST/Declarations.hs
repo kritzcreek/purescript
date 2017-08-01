@@ -602,6 +602,9 @@ data GuardedExpr = GuardedExpr [Guard] Expr
 pattern MkUnguarded :: Expr -> GuardedExpr
 pattern MkUnguarded e = GuardedExpr [] e
 
+discardGuards :: GuardedExpr -> Expr
+discardGuards (GuardedExpr _ e) = e
+
 -- |
 -- Data type for expressions and terms
 --

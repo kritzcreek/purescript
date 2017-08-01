@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveTraversable #-}
 -- |
 -- The core functional representation for literal values.
 --
@@ -35,4 +37,4 @@ data Literal a
   -- An object literal
   --
   | ObjectLiteral [(PSString, a)]
-  deriving (Eq, Ord, Show, Functor)
+  deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
