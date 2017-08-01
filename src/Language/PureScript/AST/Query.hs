@@ -5,12 +5,19 @@ import Protolude
 import qualified Language.PureScript as P
 
 import Control.Monad.Writer.Strict
-import Data.Vector (Vector)
-import Data.Vector.Algorithms.Search
+import           Data.Vector (Vector)
 import qualified Data.Vector as V
+import           Data.Vector.Mutable (MVector)
+import qualified Data.Vector.Mutable as MV
+import Data.Vector.Algorithms.Search
 import Language.PureScript.AST
 
-type M = WriterT (Vector (DFI Node)) (State Int)
+type M = State S
+
+data S = S
+  { nodes :: Vector (DFI Node)
+  , currentIndex :: Int
+  }
 
 -- Depth first index
 type DFI a = (Int, Int, a)
@@ -24,24 +31,26 @@ data Index = Index
   { declarations :: Vector (DFI Declaration)
   , expressions :: Vector (DFI Expr)
   , binders :: Vector (DFI Binder)
-  }
+  } deriving Show
 
 emptyIndex :: Index
 emptyIndex = Index V.empty V.empty V.empty
 
 buildIndex :: Declaration -> Index
 buildIndex x =
-  let nodes :: Vector (DFI Node) = flip evalState 0 $ execWriterT $ goDecl x
-  in foldl' insertNode emptyIndex nodes
-
-currentIndex :: M Int
-currentIndex = get
+  let result :: Vector (DFI Node) = nodes $ flip execState (S V.empty 0) $ goDecl x
+  in foldl' insertNode emptyIndex result
 
 nextIndex :: M Int
-nextIndex = modify succ *> get
+nextIndex = gets currentIndex <* modify (\s -> s {currentIndex = currentIndex s + 1})
 
-writeNode :: DFI Node -> M ()
-writeNode = tell . V.singleton
+writeNode :: (Int, Node) -> M ()
+writeNode (i, node) = modify $ \(S nodes ix) -> S (nodes `V.snoc` (i, 0, node)) ix
+
+updateDescendantCount :: Int -> Int -> M ()
+updateDescendantCount ix count = modify $ \(S nodes i) -> S ( V.modify (\v -> MV.modify v setCount ix) nodes ) i
+  where
+   setCount (dfi, _, node) = (dfi, count, node)
 
 insertNode :: Index -> DFI Node -> Index
 insertNode prev (i, j, node) = case node of
@@ -54,8 +63,6 @@ insertNode prev (i, j, node) = case node of
 
 goDecl :: Declaration -> M Int
 goDecl d = case d of
-  DataDeclaration{} ->
-    writeDecl (pure 1)
   ValueDeclaration _ _ _ binders gExprs ->
     writeDecl $ do
       let exprs = map discardGuards gExprs
@@ -71,12 +78,13 @@ goDecl d = case d of
     writeDecl $ map sum $ for bindings $ \(_, _, e) -> goExpr e
   TypeClassDeclaration _ _ _ _ _ decls ->
     writeDecl $ map sum $ traverse goDecl decls
-  _ -> writeDecl (pure 1)
+  _ -> writeDecl (pure 0)
   where
     writeDecl g = do
       ix <- nextIndex
+      writeNode (ix, Declaration' d)
       descendants <- g
-      writeNode (ix, descendants, Declaration' d)
+      updateDescendantCount ix descendants
       pure (descendants + 1)
 
 goExpr :: Expr -> M Int
@@ -135,12 +143,13 @@ goExpr expr = case expr of
      writeExpr $ goExpr e
   PositionedValue _ _ e ->
      writeExpr $ goExpr e
-  _ -> writeExpr (pure 1)
+  _ -> writeExpr (pure 0)
   where
     writeExpr g = do
       ix <- nextIndex
+      writeNode (ix, Expr' expr)
       descendants <- g
-      writeNode (ix, descendants, Expr' expr)
+      updateDescendantCount ix descendants
       pure (descendants + 1)
 
 goBinder :: Binder -> M Int
@@ -159,12 +168,13 @@ goBinder b = case b of
     writeBinder $ goBinder binder
   TypedBinder _ binder ->
     writeBinder $ goBinder binder
-  _ -> writeBinder (pure 1)
+  _ -> writeBinder (pure 0)
   where
     writeBinder g = do
       ix <- nextIndex
+      writeNode (ix, Binder' b)
       descendants <- g
-      writeNode (ix, descendants, Binder' b)
+      updateDescendantCount ix descendants
       pure (descendants + 1)
 
 getDescendants :: Index -> (Int, Int) -> (Index -> Vector (DFI a)) -> Vector (DFI a)
@@ -180,5 +190,6 @@ script = do
   let fp = "d:/Documents/GitHub/tmp/src/Main.purs"
   f <- readFile fp
   let Right (_, P.Module _ _ _ decls _) = P.parseModuleFromFile identity (fp, f)
-  print (length decls)
-  pure decls
+  let [_, decl] = decls
+  let ix = buildIndex decl
+  pure ix
