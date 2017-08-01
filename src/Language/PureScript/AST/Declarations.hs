@@ -724,6 +724,9 @@ data Expr
   | PositionedValue SourceSpan [Comment] Expr
   deriving (Show)
 
+exprSourceSpan :: Expr -> Maybe SourceSpan
+exprSourceSpan (PositionedValue sp _ _) = Just sp
+exprSourceSpan _ = Nothing
 -- |
 -- An alternative in a case statement
 --
