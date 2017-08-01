@@ -87,6 +87,7 @@ dependencies:
   - unordered-containers
   - utf8-string >=1 && <2
   - vector
+  - vector-algorithms
 
 library:
   source-dirs: src
