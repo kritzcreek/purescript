@@ -1,6 +1,14 @@
 {-# LANGUAGE DeriveFoldable    #-}
 {-# LANGUAGE DeriveTraversable #-}
-module Language.PureScript.AST.Query where
+module Language.PureScript.AST.Query
+  ( Index(..)
+  , Indexed(..)
+  , DFI(..)
+  , buildIndexForModule
+  , buildIndexForDeclaration
+  , getDescendants
+  , findCoveringDFI
+  ) where
 
 import Protolude
 
@@ -12,6 +20,7 @@ import qualified Data.Vector as V
 import qualified Data.Vector.Mutable as MV
 import Data.Vector.Algorithms.Search
 import Language.PureScript.AST
+import           System.IO.UTF8 (readUTF8FileT)
 
 type M = State S
 
@@ -30,25 +39,43 @@ data Indexed a = Indexed
   } deriving (Show, Eq, Ord, Functor, Foldable, Traversable)
 
 
-data Node = Declaration' Declaration | Expr' Expr | Binder' Binder
+data Node = Declaration' Declaration | Expr' Expr | Binder' Binder | Module' Module
 
 data Index = Index
-  { declarations :: Vector (Indexed Declaration)
+  { modules :: Vector (Indexed Module)
+  , declarations :: Vector (Indexed Declaration)
   , expressions :: Vector (Indexed Expr)
   , binders :: Vector (Indexed Binder)
   , sourceSpans :: Vector (SourcePos, SourcePos)
   } deriving Show
 
 emptyIndex :: Index
-emptyIndex = Index V.empty V.empty V.empty V.empty
+emptyIndex = Index V.empty V.empty V.empty V.empty V.empty
 
-buildIndex :: Declaration -> Index
-buildIndex x =
+buildIndexForModule :: Module -> Index
+buildIndexForModule m =
+  let span = (spanStart &&& spanEnd) (getModuleSourceSpan m)
+  in buildIndex span $ do
+    ix <- nextIndex
+    writeNode (ix, Module' m)
+    descendants <- map sum $ traverse goDecl (getModuleDeclarations m)
+    updateDescendantCount ix descendants
+
+buildIndexForDeclarations :: [Declaration] -> Index
+buildIndexForDeclarations ds =
+  buildIndex undefined (traverse_ goDecl ds)
+
+buildIndexForDeclaration :: Declaration -> Index
+buildIndexForDeclaration d =
+  let span = (spanStart &&& spanEnd) (declSourceSpan d)
+  in buildIndex span (goDecl d)
+
+buildIndex :: (SourcePos, SourcePos) -> M a -> Index
+buildIndex span f =
   let
-    result :: Vector (Indexed Node) = nodes $ flip execState (S V.empty 0) $ goDecl x
-    span = declSourceSpan x
+    result :: Vector (Indexed Node) = nodes $ flip execState (S V.empty 0) $ f
   in
-    fst $ foldl' insertNode (emptyIndex, (spanStart span, spanEnd span)) result
+    fst $ foldl' insertNode (emptyIndex, span) result
 
 insertNode :: (Index, (SourcePos, SourcePos)) -> Indexed Node -> (Index, (SourcePos, SourcePos))
 insertNode (prev, pSpan) (Indexed i j node) = case node of
@@ -74,6 +101,14 @@ insertNode (prev, pSpan) (Indexed i j node) = case node of
     in
       (prev
         { binders = V.snoc (binders prev) (Indexed i j b)
+        , sourceSpans = V.snoc (sourceSpans prev) span
+        }, span)
+  Module' m ->
+    let
+      span = (spanStart &&& spanEnd) (getModuleSourceSpan m)
+    in
+      (prev
+        { modules = V.snoc (modules prev) (Indexed i j m)
         , sourceSpans = V.snoc (sourceSpans prev) span
         }, span)
 
@@ -229,12 +264,12 @@ findCoveringDFI ix (start, end) = do
   where
     covers (_, (s, e)) = s <= start && e <= end
 
--- script :: IO Index
+script :: IO Index
 script = do
-  let fp = "C:/Users/Christoph/code/tmp/src/Main.purs"
-  f <- readFile fp
-  let Right (_, P.Module _ _ _ decls _) = P.parseModuleFromFile identity (fp, f)
-  pure (V.fromList decls)
+  let fp = "d:/Documents/Github/tmp/src/Main.purs"
+  f <- readUTF8FileT fp
+  let Right (_, m) = P.parseModuleFromFile identity (fp, f)
+  pure (buildIndexForModule m)
   -- let (_ : decl :_) = decls
   -- let ix = buildIndex decl
   -- pure ix
