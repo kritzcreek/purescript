@@ -218,6 +218,17 @@ getDescendants ix (DFI dfi, desc) type_ = runST $ do
       b <- binarySearchByBounds compare thawed (dfi + desc) (a + 1) l
       pure (V.slice a b nodes)
 
+-- | Finds the narrowest Node that fully covers a given 0-indexed span.
+findCoveringDFI :: Index -> (SourcePos, SourcePos) -> Maybe DFI
+findCoveringDFI ix (start, end) = do
+  let spans = sourceSpans ix
+  let covering = V.filter covers (V.indexed spans)
+  if V.null spans || V.null covering
+    then Nothing
+    else Just (DFI (fst (V.last covering)))
+  where
+    covers (_, (s, e)) = s <= start && e <= end
+
 -- script :: IO Index
 script = do
   let fp = "C:/Users/Christoph/code/tmp/src/Main.purs"
