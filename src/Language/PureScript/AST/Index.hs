@@ -1,11 +1,12 @@
 {-# LANGUAGE DeriveFoldable    #-}
 {-# LANGUAGE DeriveTraversable #-}
-module Language.PureScript.AST.Query
+module Language.PureScript.AST.Index
   ( Index(..)
   , Indexed(..)
   , DFI(..)
   , buildIndexForModule
   , buildIndexForDeclaration
+  , buildIndexForDeclarations
   , getDescendants
   , findCoveringDFI
   ) where
@@ -52,9 +53,12 @@ data Index = Index
 emptyIndex :: Index
 emptyIndex = Index V.empty V.empty V.empty V.empty V.empty
 
+positionsFromSpan :: SourceSpan -> (SourcePos, SourcePos)
+positionsFromSpan = spanStart &&& spanEnd
+
 buildIndexForModule :: Module -> Index
 buildIndexForModule m =
-  let span = (spanStart &&& spanEnd) (getModuleSourceSpan m)
+  let span = positionsFromSpan (getModuleSourceSpan m)
   in buildIndex span $ do
     ix <- nextIndex
     writeNode (ix, Module' m)
@@ -67,7 +71,7 @@ buildIndexForDeclarations ds =
 
 buildIndexForDeclaration :: Declaration -> Index
 buildIndexForDeclaration d =
-  let span = (spanStart &&& spanEnd) (declSourceSpan d)
+  let span = positionsFromSpan (declSourceSpan d)
   in buildIndex span (goDecl d)
 
 buildIndex :: (SourcePos, SourcePos) -> M a -> Index
@@ -81,7 +85,7 @@ insertNode :: (Index, (SourcePos, SourcePos)) -> Indexed Node -> (Index, (Source
 insertNode (prev, pSpan) (Indexed i j node) = case node of
   Declaration' d ->
     let
-      span = (spanStart &&& spanEnd) (declSourceSpan d)
+      span = positionsFromSpan (declSourceSpan d)
     in
       (prev
         { declarations = V.snoc (declarations prev) (Indexed i j d)
@@ -89,7 +93,7 @@ insertNode (prev, pSpan) (Indexed i j node) = case node of
         }, span)
   Expr' e ->
     let
-      span = maybe pSpan (spanStart &&& spanEnd) (exprSourceSpan e)
+      span = maybe pSpan positionsFromSpan (exprSourceSpan e)
     in
       (prev
         { expressions = V.snoc (expressions prev) (Indexed i j e)
@@ -97,7 +101,7 @@ insertNode (prev, pSpan) (Indexed i j node) = case node of
         }, span)
   Binder' b ->
     let
-      span = maybe pSpan (spanStart &&& spanEnd) (binderSourceSpan b)
+      span = maybe pSpan positionsFromSpan (binderSourceSpan b)
     in
       (prev
         { binders = V.snoc (binders prev) (Indexed i j b)
@@ -105,7 +109,7 @@ insertNode (prev, pSpan) (Indexed i j node) = case node of
         }, span)
   Module' m ->
     let
-      span = (spanStart &&& spanEnd) (getModuleSourceSpan m)
+      span = positionsFromSpan (getModuleSourceSpan m)
     in
       (prev
         { modules = V.snoc (modules prev) (Indexed i j m)
