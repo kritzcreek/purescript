@@ -248,14 +248,19 @@ goBinder b = case b of
 getDescendants :: Index -> (DFI, Int) -> (Index -> Vector (Indexed a)) -> Vector (Indexed a)
 getDescendants ix (DFI dfi, desc) type_ = runST $ do
   let nodes = type_ ix
-  if V.null nodes
+  if V.null nodes || desc == 0
     then pure V.empty
     else do
       let l = V.length nodes
       thawed <- V.thaw (map (unDFI . ixDFI) nodes)
       a <- binarySearchByBounds compare thawed dfi 0 l
       b <- binarySearchByBounds compare thawed (dfi + desc) (a + 1) l
-      pure (V.slice a b nodes)
+      if b == l
+        then
+        -- we didn't find any matches
+        pure V.empty
+        else
+        pure (V.slice a b nodes)
 
 -- | Finds the narrowest Node that fully covers a given 0-indexed span.
 findCoveringDFI :: Index -> (SourcePos, SourcePos) -> Maybe DFI
