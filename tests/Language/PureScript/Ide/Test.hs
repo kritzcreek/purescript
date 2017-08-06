@@ -2,19 +2,28 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PackageImports    #-}
 {-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE FlexibleContexts  #-}
 module Language.PureScript.Ide.Test where
 
+import Control.Category ((>>>))
 import           Control.Concurrent.STM
 import           "monad-logger" Control.Monad.Logger
+import           Control.Monad.Writer
 import qualified Data.Map                        as Map
+import qualified Data.Vector as V
 import           Language.PureScript.Ide
 import           Language.PureScript.Ide.Command
 import           Language.PureScript.Ide.Error
+import           Language.PureScript.Ide.Rebuild (sortExterns)
 import           Language.PureScript.Ide.Types
+import           Language.PureScript.AST.Index
+import Language.PureScript.Sugar.Names (desugarImports)
 import           Protolude
 import           System.Directory
 import           System.FilePath
+import           System.IO.UTF8
 import           System.Process
+import           Text.Show
 
 import qualified Language.PureScript             as P
 
@@ -37,6 +46,13 @@ runIde' conf s cs = do
 
 runIde :: [Command] -> IO ([Either IdeError Success], IdeState)
 runIde = runIde' defConfig emptyIdeState
+
+runIde'' s f = do
+  stateVar <- newTVarIO s
+  let env' = IdeEnvironment {ideStateVar = stateVar, ideConfiguration = defConfig}
+  Right r <- runNoLoggingT (runReaderT (runExceptT f) env')
+  newState <- readTVarIO stateVar
+  pure (r, newState)
 
 volatileState :: IdeState -> [(Text, [IdeDeclarationAnn])] -> IdeState
 volatileState s ds =
@@ -147,3 +163,33 @@ tryNTimes n action = do
 deleteOutputFolder :: IO ()
 deleteOutputFolder = inProject $
   whenM (doesDirectoryExist "output") (removeDirectoryRecursive "output")
+
+evalWriterT :: Functor m => WriterT w m a -> m a
+evalWriterT = map fst . runWriterT
+
+
+script x y = inProject $ do
+  let myFilterPos = P.SourcePos x y
+  (_, state) <- runIde [LoadSync []]
+  let path = "src/Desugar.purs"
+  file <- readUTF8FileT path
+  let Right (_, m) = P.parseModuleFromFile identity (path, file)
+  let myModule = P.importPrim m
+  (sorted, _) <- runIde'' state (state & ideFileState & fsExterns & sortExterns myModule)
+  Right [desugared] <- evalWriterT $ runExceptT $ P.evalSupplyT 0 $ miniDesugar sorted [myModule]
+  let ix = buildIndexForModule desugared
+  let Just dfi = findCoveringDFI ix (myFilterPos, myFilterPos)
+  -- traceShowM (expressions ix)
+  traceShowM dfi
+  traceShowM (binders ix & V.filter ((==) dfi . ixDFI))
+  traceShowM (expressions ix & V.filter ((==) dfi . ixDFI))
+  traceShowM (declarations ix & V.filter ((==) dfi . ixDFI))
+
+miniDesugar externs =
+  map P.desugarSignedLiterals
+    >>> traverse P.desugarObjectConstructors
+    >=> traverse P.desugarDoModule
+    >=> map P.desugarLetPatternModule
+    >>> traverse P.desugarCasesModule
+    >=> traverse P.desugarTypeDeclarationsModule
+    >=> desugarImports externs

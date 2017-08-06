@@ -120,7 +120,10 @@ data OpNameType = ValueOpName | TypeOpName
 -- Proper names, i.e. capitalized names for e.g. module names, type//data constructors.
 --
 newtype ProperName (a :: ProperNameType) = ProperName { runProperName :: Text }
-  deriving (Show, Eq, Ord, Generic)
+  deriving (Eq, Ord, Generic)
+
+instance Show (ProperName a) where
+  show p = T.unpack (runProperName p)
 
 instance NFData (ProperName a)
 
@@ -152,7 +155,10 @@ coerceProperName = ProperName . runProperName
 -- Module names
 --
 newtype ModuleName = ModuleName [ProperName 'Namespace]
-  deriving (Show, Eq, Ord, Generic)
+  deriving (Eq, Ord, Generic)
+
+instance Show ModuleName where
+  show mn = "(MN " ++ T.unpack (runModuleName mn) ++ ")"
 
 instance NFData ModuleName
 

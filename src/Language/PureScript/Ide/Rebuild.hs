@@ -5,6 +5,7 @@ module Language.PureScript.Ide.Rebuild
   ( rebuildFileSync
   , rebuildFileAsync
   , rebuildFile
+  , sortExterns
   ) where
 
 import           Protolude
