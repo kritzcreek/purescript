@@ -180,10 +180,19 @@ script x y = inProject $ do
   let ix = buildIndexForModule desugared
   let Just dfi = findCoveringDFI ix (myFilterPos, myFilterPos)
   -- traceShowM (expressions ix)
+
   traceShowM dfi
-  traceShowM (binders ix & V.filter ((==) dfi . ixDFI))
-  traceShowM (expressions ix & V.filter ((==) dfi . ixDFI))
-  traceShowM (declarations ix & V.filter ((==) dfi . ixDFI))
+  traceShowM $ expressions ix & V.find ((==) dfi . ixDFI)
+  traceShowM $ binders ix & V.find ((==) dfi . ixDFI)
+  traceShowM $ declarations ix & V.find ((==) dfi . ixDFI)
+  traceM $ case expressions ix & V.find ((==) dfi . ixDFI) & map ixVal of
+    Just (P.Var (P.Qualified (Just mn) _)) -> Protolude.show mn
+    Just (P.Constructor (P.Qualified (Just mn) _)) -> Protolude.show mn
+  _ -> "lol"
+  traceM $ case binders ix & V.find ((==) dfi . ixDFI) & map ixVal of
+    Just (P.ConstructorBinder (P.Qualified (Just mn) _) _) -> Protolude.show mn
+    _ -> "lol"
+  pure ix
 
 miniDesugar externs =
   map P.desugarSignedLiterals
