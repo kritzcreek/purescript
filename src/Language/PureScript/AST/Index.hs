@@ -271,7 +271,7 @@ findCoveringDFI ix (start, end) = do
     then Nothing
     else Just (DFI (fst (V.last covering)))
   where
-    covers (_, (s, e)) = s <= start && e <= end
+    covers (_, (s, e)) = s <= start && end <= e
 
 script :: IO Index
 script = do
