@@ -188,7 +188,7 @@ script x y = inProject $ do
   traceM $ case expressions ix & V.find ((==) dfi . ixDFI) & map ixVal of
     Just (P.Var (P.Qualified (Just mn) _)) -> Protolude.show mn
     Just (P.Constructor (P.Qualified (Just mn) _)) -> Protolude.show mn
-  _ -> "lol"
+    _ -> "lol"
   traceM $ case binders ix & V.find ((==) dfi . ixDFI) & map ixVal of
     Just (P.ConstructorBinder (P.Qualified (Just mn) _) _) -> Protolude.show mn
     _ -> "lol"
