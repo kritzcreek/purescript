@@ -176,23 +176,28 @@ script x y = inProject $ do
   let Right (_, m) = P.parseModuleFromFile identity (path, file)
   let myModule = P.importPrim m
   (sorted, _) <- runIde'' state (state & ideFileState & fsExterns & sortExterns myModule)
-  Right [desugared] <- evalWriterT $ runExceptT $ P.evalSupplyT 0 $ miniDesugar sorted [myModule]
-  let ix = buildIndexForModule desugared
-  let Just dfi = findCoveringDFI ix (myFilterPos, myFilterPos)
-  -- traceShowM (expressions ix)
+  r <- evalWriterT $ runExceptT $ P.evalSupplyT 0 $ miniDesugar sorted [myModule]
+  case r of
+    Left err -> do
+      traceShowM err
+      undefined
+    Right [desugared] -> do
+      let ix = buildIndexForModule desugared
+      let Just dfi = findCoveringDFI ix (myFilterPos, myFilterPos)
+      -- traceShowM (expressions ix)
 
-  traceShowM dfi
-  traceShowM $ expressions ix & V.find ((==) dfi . ixDFI)
-  traceShowM $ binders ix & V.find ((==) dfi . ixDFI)
-  traceShowM $ declarations ix & V.find ((==) dfi . ixDFI)
-  traceM $ case expressions ix & V.find ((==) dfi . ixDFI) & map ixVal of
-    Just (P.Var (P.Qualified (Just mn) _)) -> Protolude.show mn
-    Just (P.Constructor (P.Qualified (Just mn) _)) -> Protolude.show mn
-    _ -> "lol"
-  traceM $ case binders ix & V.find ((==) dfi . ixDFI) & map ixVal of
-    Just (P.ConstructorBinder (P.Qualified (Just mn) _) _) -> Protolude.show mn
-    _ -> "lol"
-  pure ix
+      traceShowM dfi
+      traceShowM $ expressions ix & V.find ((==) dfi . ixDFI)
+      traceShowM $ binders ix & V.find ((==) dfi . ixDFI)
+      traceShowM $ declarations ix & V.find ((==) dfi . ixDFI)
+      traceM $ case expressions ix & V.find ((==) dfi . ixDFI) & map ixVal of
+        Just (P.Var (P.Qualified (Just mn) _)) -> Protolude.show mn
+        Just (P.Constructor (P.Qualified (Just mn) _)) -> Protolude.show mn
+        _ -> "lol"
+      traceM $ case binders ix & V.find ((==) dfi . ixDFI) & map ixVal of
+        Just (P.ConstructorBinder (P.Qualified (Just mn) _) _) -> Protolude.show mn
+        _ -> "lol"
+      pure ix
 
 miniDesugar externs =
   map P.desugarSignedLiterals
