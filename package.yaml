@@ -68,6 +68,7 @@ dependencies:
   - pipes >=4.0.0 && <4.4.0
   - pipes-http
   - process >=1.2.0 && <1.7
+  - typed-process
   - protolude >=0.1.6
   - regex-tdfa
   - safe >=0.3.9 && <0.4

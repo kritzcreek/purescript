@@ -47,12 +47,14 @@ import qualified Network.Wai.Handler.WebSockets as WS
 import qualified Network.WebSockets as WS
 import qualified Options.Applicative as Opts
 import           System.Console.Haskeline
+import           System.IO
 import           System.IO.UTF8 (readUTF8File)
 import           System.Exit
 import           System.Directory (doesFileExist, getCurrentDirectory)
 import           System.FilePath ((</>))
 import           System.FilePath.Glob (glob)
 import           System.Process (readProcessWithExitCode)
+import qualified System.Process.Typed as PT
 import qualified Data.ByteString.Lazy.UTF8 as U
 
 -- | Command line options
@@ -89,7 +91,8 @@ port = Opts.option Opts.auto $
 
 backend :: Opts.Parser Backend
 backend =
-  (browserBackend <$> port)
+  pure purplBackend
+  <|> (browserBackend <$> port)
   <|> (nodeBackend <$> nodePathOption <*> nodeFlagsOption)
 
 psciOptions :: Opts.Parser PSCiOptions
@@ -300,6 +303,31 @@ nodeBackend nodePath nodeArgs = Backend setup eval reload shutdown
 
     shutdown :: () -> IO ()
     shutdown _ = return ()
+
+
+-- type PurplState = 
+
+purplBackend :: Backend
+purplBackend = Backend setup eval reload shutdown
+  where
+    purplConfig =
+      PT.setStdin PT.createPipe
+      $ PT.setStdout PT.createPipe
+      $ PT.setStderr PT.inherit
+      (PT.proc "node" ["C:\\Users\\creek\\code\\purpl\\index.js"])
+
+    setup = PT.startProcess purplConfig
+
+    eval process js = do
+      putStrLn ("Evaling JS: " ++ js)
+      hPutStrLn (PT.getStdin process) (show ("function() {\nvar module = {};\n" ++ js ++ "\nreturn it; }()"))
+      hFlush (PT.getStdin process)
+
+      hGetLine (PT.getStdout process) >>= print
+
+    reload _ = pure ()
+
+    shutdown = PT.stopProcess
 
 options :: Opts.Parser PSCiOptions
 options = Opts.helper <*> psciOptions
