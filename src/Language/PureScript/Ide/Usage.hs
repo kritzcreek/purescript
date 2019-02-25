@@ -134,8 +134,9 @@ applySearch module_ search =
     findUsageInDeclaration =
       let
         (extr, _, _, _, _) = P.everythingWithScope mempty goExpr goBinder mempty mempty
+        (extrTy, _, _, _, _) = P.accumTypes (P.everythingOnTypes (<>) goTy)
       in
-        extr mempty
+        \decl -> extrTy decl <> extr mempty decl
 
     goExpr scope expr = case expr of
       P.Var sp i
@@ -159,3 +160,13 @@ applySearch module_ search =
         | Just op <- traverse (preview _IdeDeclValueOperator) search ->
           [sp | opName == map _ideValueOpName op]
       _ -> []
+
+    goTy :: P.SourceType -> [P.SourceSpan]
+    goTy ty = case ty of
+      P.TypeConstructor (sp, _) tyName
+        | Just ideTy <- traverse (preview _IdeDeclType) search ->
+          [sp | tyName == map _ideTypeName ideTy]
+      P.TypeConstructor (sp, _) tyName
+        | Just ideSyn <- traverse (preview _IdeDeclTypeSynonym) search ->
+          [sp | tyName == map _ideSynonymName ideSyn]
+      _ -> mempty
