@@ -132,10 +132,11 @@ completionFromMatch (Match (m, IdeDeclarationAnn ann decl), mns) =
 
     complDocumentation = _annDocumentation ann
 
+    complNamespace = namespaceForDeclaration decl
+
     showFixity p a r o =
       let asso = case a of
             P.Infix -> "infix"
             P.Infixl -> "infixl"
             P.Infixr -> "infixr"
       in T.unwords [asso, show p, r, "as", P.runOpName o]
-

@@ -23,7 +23,7 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
 import qualified Language.PureScript as P
 import           Language.PureScript.Errors.JSON
-import           Language.PureScript.Ide.Types   (ModuleIdent, Completion(..))
+import           Language.PureScript.Ide.Types   (ModuleIdent, Completion(..), IdeNamespace(..))
 import           Protolude
 import qualified Text.Parsec.Error               as Parsec
 
@@ -66,9 +66,9 @@ encodeRebuildErrors = toJSON . map encodeRebuildError . P.runMultipleErrors
     insertTSCompletions _ _ _ v = v
 
     identCompletion (P.Qualified mn i, ty) =
-      Completion (maybe "" P.runModuleName mn) i (prettyPrintTypeSingleLine ty) (prettyPrintTypeSingleLine ty) Nothing Nothing (maybe [] (\x -> [x]) mn)
+      Completion (maybe "" P.runModuleName mn) i (prettyPrintTypeSingleLine ty) (prettyPrintTypeSingleLine ty) Nothing Nothing (maybe [] (\x -> [x]) mn) IdeNSValue
     fieldCompletion (label, ty) =
-      Completion "" ("_." <> P.prettyPrintLabel label) (prettyPrintTypeSingleLine ty) (prettyPrintTypeSingleLine ty) Nothing Nothing []
+      Completion "" ("_." <> P.prettyPrintLabel label) (prettyPrintTypeSingleLine ty) (prettyPrintTypeSingleLine ty) Nothing Nothing [] IdeNSValue
 
 textError :: IdeError -> Text
 textError (GeneralError msg)          = msg

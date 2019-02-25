@@ -233,6 +233,7 @@ data Completion = Completion
   , complLocation      :: Maybe P.SourceSpan
   , complDocumentation :: Maybe Text
   , complExportedFrom  :: [P.ModuleName]
+  , complNamespace     :: IdeNamespace
   } deriving (Show, Eq, Ord)
 
 instance ToJSON Completion where
@@ -244,6 +245,7 @@ instance ToJSON Completion where
            , "definedAt" .= complLocation
            , "documentation" .= complDocumentation
            , "exportedFrom" .= map P.runModuleName complExportedFrom
+           , "namespace" .= printIdeNamespace complNamespace
            ]
 
 identifierFromDeclarationRef :: P.DeclarationRef -> Text
@@ -300,6 +302,12 @@ encodeImport (P.runModuleName -> mn, importType, map P.runModuleName -> qualifie
 -- | Denotes the different namespaces a name in PureScript can reside in.
 data IdeNamespace = IdeNSValue | IdeNSType | IdeNSKind
   deriving (Show, Eq, Ord, Generic, NFData)
+
+printIdeNamespace :: IdeNamespace -> Text
+printIdeNamespace = \case
+  IdeNSValue -> "value"
+  IdeNSType -> "type"
+  IdeNSKind -> "kind"
 
 instance FromJSON IdeNamespace where
   parseJSON (String s) = case s of
